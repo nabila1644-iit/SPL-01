@@ -14,6 +14,38 @@ int transactions = 0;
 double minimum_support=0.2;
 double min_confidence=0.5;
 
+template<typename Iterator>
+void my_sort(Iterator first,Iterator last){
+    auto count=last-first;
+    if(count<2){
+        return;
+    }
+    auto pivot=*(first+count/2);
+    Iterator left=first;
+    Iterator right=last-1;
+    while(left<=right){
+        while (*left<pivot)
+        {
+            ++left;
+        }
+        while(*right>pivot){
+            --right;
+        }
+        if(left<=right){
+            iter_swap(left,right);
+            ++left;
+            --right;
+        }
+        
+    }
+    if(first<right+1){
+        my_sort(first,right+1);
+    }
+    if(left<last){
+        my_sort(left,last);
+    }
+}
+
 void printItemset(const vector<int>&itemset){
     cout<<"{";
     int n=itemset.size();
@@ -30,6 +62,7 @@ void convertFile(const string &inputFile, const string &outputFile) {
     ifstream in(inputFile);
     ofstream out(outputFile);
     string line;
+    //database.clear();
     
     while(getline(in, line)) {
         for(char &ch : line) {
@@ -39,6 +72,7 @@ void convertFile(const string &inputFile, const string &outputFile) {
         }
         transactions++;
         out << line << endl;
+        
     }
     in.close();
     out.close();
@@ -239,17 +273,95 @@ void generateAndPrintRules(const map<int,vector<vector<int>>>&all_frequent_items
     }
 }
 
+void BuisnessAnalytics(map<vector<int>,int>&all_itemset_supports,int total_transactions){
+    int choice;
+    
+    do{
+        cout<<"\n===============\n";
+        cout<<"SHOPKEEPERS MENU     \n";
+        cout<<"1.PREDICT: probability of buying item x if user has {a,b..d}\n";
+        cout<<"2.STRATEGY: which items should be placed together? \n";
+        cout<<"0. exit to main menu \n";
+        cout<<"enter choice: \n";
+        cin>>choice;
 
+        if(choice==1){
+            int n_antecedent,n_consequent,item;
+            vector<int>antecedent,full_set;
+            cout<<"\n---prediction tool ----\n";
+            cout<<"how many items are currently in your cart? \n";
+            cin>>n_antecedent;
+            cout<<"Enter the item id's (E.g: 1,3,5): \n";
+            for(int i=0;i<n_antecedent;i++){
+                cin>>item;
+                antecedent.push_back(item-1);
+            }
+
+            cout<<"which item are you looking probability for? \n";
+            cin>>item;
+            int target_item=item-1;
+
+            full_set=antecedent;
+            full_set.push_back(target_item);
+
+            my_sort(antecedent.begin(),antecedent.end());
+            my_sort(full_set.begin(),full_set.end());
+
+            if(all_itemset_supports.count(antecedent) &&  all_itemset_supports.count(full_set)){
+                double support_A=all_itemset_supports[antecedent];
+                double support_AB=all_itemset_supports[full_set];
+
+                double confidence=(support_AB/support_A)*100.00;
+                cout<<"\n>>> RESULT: "<<confidence<<"% probability.\n";
+                
+                if(confidence>50.00){
+                    cout<<"YES...i recommend this item\n";
+                }
+                else{
+                    cout<<"unlikely to buy...";
+                }
+            }
+            else{
+                cout<<"\n not enough data history to predict this combination \n";
+            }
+        }
+
+        else if(choice==2){
+            cout<<"\n----Shelf Placement Strategy (top associations)---\n";
+            cout<<"Items that are bought together frequently (high co-occurrence):\n";
+
+            bool found=false;
+            for(auto const& [itemset,count]:all_itemset_supports){
+                if(itemset.size()>=2){
+                    double support_pct=(double)count/total_transactions;
+
+                    if(support_pct>0.3){
+                        found=true;
+                        printItemset(itemset);
+                        cout<<"bought together in "<<(support_pct*100)<<"% of visits\n";
+
+                    }
+                }
+            }
+            if(!found){
+                cout<<"NO strong groups found.\n";
+            }
+            cout<<"\nTIP: place these items on the same asile or adjacent shelves.\n";
+        }
+    }
+    while (choice!=0);
+    
+}
 
 int main() {
-    convertFile("G:\\INPUT.TXT", "output.txt");
+    convertFile("INPUT.TXT", "output.txt");
     if(transactions==0){
         cerr<<"no transactions found . exiting\n";
         return 1;
     }
-    cout<<" press 1 for running Apriori algorithm\n 
-    press 2 for running Fp-growth algorithm\n
-    press 3 for running Eclat algorithm\n";
+    cout<<" press 1 for running Apriori algorithm\n" 
+    <<"press 2 for running Fp-growth algorithm\n"
+    <<"press 3 for running Eclat algorithm\n";
     int users_desire;
     cin>>users_desire;
     int minimum_support_count=(int)ceil(transactions*minimum_support);
@@ -290,8 +402,9 @@ int main() {
             k++;
         }
         generateAndPrintRules(all_frequent_itemsets,all_itemset_supports);
+        BuisnessAnalytics(all_itemset_supports,transactions);
         auto stop=high_resolution_clock::now();
-        auto duration=duration_cast<miliseconds>(stop-start);
+        auto duration=duration_cast<milliseconds>(stop-start);
         cout<<"Execution time for Apriori: "<<duration.count()<<"ms\n";
     }
 
