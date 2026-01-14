@@ -353,6 +353,88 @@ void BuisnessAnalytics(map<vector<int>,int>&all_itemset_supports,int total_trans
     
 }
 
+struct FPNode {
+    int itemId;
+    int count;
+    FPNode* parent;
+    map<int, FPNode*> children;
+
+    FPNode(int id, FPNode* p = nullptr) {
+        itemId = id;
+        count = 1;
+        parent = p;
+    }
+};
+
+// --- Helper Functions ---
+
+// 1. Manual function to convert Item ID to String (0 -> "I1")
+string getItemName(int id) {
+    // string conversion helper
+    stringstream ss;
+    ss << "I" << (id + 1);
+    return ss.str();
+}
+
+// 2. Manual Bubble Sort
+// Sorts items based on:
+//  1. Frequency (Descending)
+//  2. Item ID (Ascending) - as a tie-breaker
+void manualSort(vector<int>& items, map<int, int>& globalFreq) {
+    int n = items.size();
+    if (n < 2) return;
+
+    for (int i = 0; i < n - 1; i++) {
+        for (int j = 0; j < n - i - 1; j++) {
+            int itemA = items[j];
+            int itemB = items[j + 1];
+            
+            int countA = globalFreq[itemA];
+            int countB = globalFreq[itemB];
+
+            bool swapNeeded = false;
+
+            if (countB > countA) {
+                swapNeeded = true; // Higher frequency comes first
+            }
+            else if (countB == countA) {
+                if (itemB < itemA) {
+                    swapNeeded = true; // Lower ID comes first on ties
+                }
+            }
+
+            if (swapNeeded) {
+                int temp = items[j];
+                items[j] = items[j + 1];
+                items[j + 1] = temp;
+            }
+        }
+    }
+}
+
+// 3. Recursive Print Function
+void printTree(FPNode* node, string indent, bool isLast) {
+    cout << indent;
+    if (isLast) {
+        cout << "\\-"; // Visual for last child
+        indent += "  ";
+    } else {
+        cout << "|-"; // Visual for middle child
+        indent += "| ";
+    }
+
+    cout << getItemName(node->itemId) << " (" << node->count << ")" << endl;
+
+    int childIndex = 0;
+    int totalChildren = node->children.size();
+    
+    // Iterate manually through map
+    for (map<int, FPNode*>::iterator it = node->children.begin(); it != node->children.end(); ++it) {
+        childIndex++;
+        printTree(it->second, indent, (childIndex == totalChildren));
+    }
+}
+
 int main() {
     convertFile("INPUT.TXT", "output.txt");
     if(transactions==0){
@@ -410,6 +492,122 @@ int main() {
 
     else if(users_desire==2){
         //will use fp growth here
+
+        string inputFile = "INPUT.TXT";
+        
+        ifstream in(inputFile);
+        if (!in.is_open()) {
+            cerr << "Error: " << inputFile << " not found!" << endl;
+            return 1;
+        }
+
+        string line;
+        int totalTransactions = 0;
+        map<int, int> frequencyMap;
+
+        while(getline(in, line)) {
+            totalTransactions++;
+            
+            for(size_t i=0; i<line.length(); i++) {
+                if(line[i] == ',' || line[i] == ':') line[i] = ' ';
+            }
+            
+            stringstream ss(line);
+            string word;
+            
+            vector<int> seenInTx; 
+
+            while(ss >> word) {
+                if(word[0] == 'I' || word[0] == 'i') {
+                    int id = 0;
+                    
+                    try {
+                        id = stoi(word.substr(1)) - 1;
+                    } catch(...) { continue; }
+
+                    bool seen = false;
+                    for(size_t k=0; k<seenInTx.size(); k++) {
+                        if(seenInTx[k] == id) seen = true;
+                    }
+
+                    if(!seen) {
+                        frequencyMap[id]++;
+                        seenInTx.push_back(id);
+                    }
+                }
+            }
+        }
+
+        
+        cout << "Transactions: " << totalTransactions << " | Min Sup: " << minimum_support_count << endl;
+
+        in.clear();
+        in.seekg(0, ios::beg);
+
+        FPNode* root = new FPNode(-1); 
+
+        while(getline(in, line)) {
+            for(size_t i=0; i<line.length(); i++) {
+                if(line[i] == ',' || line[i] == ':') line[i] = ' ';
+            }
+
+            stringstream ss(line);
+            string word;
+            vector<int> transaction;
+            vector<int> seenInTx;
+
+            while(ss >> word) {
+                if(word[0] == 'I' || word[0] == 'i') {
+                    try {
+                        int id = stoi(word.substr(1)) - 1;
+                        if(frequencyMap[id] >= minimum_support_count) {
+                    
+                            bool seen = false;
+                            for(size_t k=0; k<seenInTx.size(); k++) {
+                                if(seenInTx[k] == id) seen = true;
+                            }
+                            if(!seen) {
+                                transaction.push_back(id);
+                                seenInTx.push_back(id);
+                            }
+                        }
+                    } catch (...) {}
+                }
+            }
+
+            manualSort(transaction, frequencyMap);
+
+            FPNode* curr = root;
+            for(size_t i = 0; i < transaction.size(); i++) {
+                int itemId = transaction[i];
+                
+                if(curr->children.find(itemId) == curr->children.end()) {
+                    
+                    FPNode* newNode = new FPNode(itemId, curr);
+                    curr->children[itemId] = newNode;
+                    curr = newNode;
+                } else {
+                    
+                    curr = curr->children[itemId];
+                    curr->count++;
+                }
+            }
+        }
+        in.close();
+
+        
+        cout << "\n--- FP Growth Tree ---" << endl;
+        cout << "ROOT" << endl;
+        
+        int childCount = 0;
+        int totalRootChildren = root->children.size();
+        for(map<int, FPNode*>::iterator it = root->children.begin(); it != root->children.end(); ++it) {
+            childCount++;
+            printTree(it->second, "", (childCount == totalRootChildren));
+        }
+
+        return 0;
+
     }
     else if(users_desire==3){
         //will use  eclat here
