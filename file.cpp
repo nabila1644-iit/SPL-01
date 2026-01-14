@@ -366,9 +366,7 @@ struct FPNode {
     }
 };
 
-// --- Helper Functions ---
 
-// 1. Manual function to convert Item ID to String (0 -> "I1")
 string getItemName(int id) {
     // string conversion helper
     stringstream ss;
@@ -376,10 +374,6 @@ string getItemName(int id) {
     return ss.str();
 }
 
-// 2. Manual Bubble Sort
-// Sorts items based on:
-//  1. Frequency (Descending)
-//  2. Item ID (Ascending) - as a tie-breaker
 void manualSort(vector<int>& items, map<int, int>& globalFreq) {
     int n = items.size();
     if (n < 2) return;
@@ -395,11 +389,11 @@ void manualSort(vector<int>& items, map<int, int>& globalFreq) {
             bool swapNeeded = false;
 
             if (countB > countA) {
-                swapNeeded = true; // Higher frequency comes first
+                swapNeeded = true; 
             }
             else if (countB == countA) {
                 if (itemB < itemA) {
-                    swapNeeded = true; // Lower ID comes first on ties
+                    swapNeeded = true; 
                 }
             }
 
@@ -412,14 +406,14 @@ void manualSort(vector<int>& items, map<int, int>& globalFreq) {
     }
 }
 
-// 3. Recursive Print Function
+
 void printTree(FPNode* node, string indent, bool isLast) {
     cout << indent;
     if (isLast) {
-        cout << "\\-"; // Visual for last child
+        cout << "\\-"; //denotes last child
         indent += "  ";
     } else {
-        cout << "|-"; // Visual for middle child
+        cout << "|-"; //denotes middle child
         indent += "| ";
     }
 
@@ -428,7 +422,7 @@ void printTree(FPNode* node, string indent, bool isLast) {
     int childIndex = 0;
     int totalChildren = node->children.size();
     
-    // Iterate manually through map
+    
     for (map<int, FPNode*>::iterator it = node->children.begin(); it != node->children.end(); ++it) {
         childIndex++;
         printTree(it->second, indent, (childIndex == totalChildren));
@@ -441,7 +435,7 @@ int main() {
         cerr<<"no transactions found . exiting\n";
         return 1;
     }
-    cout<<" press 1 for running Apriori algorithm\n" 
+    cout<<"press 1 for running Apriori algorithm\n" 
     <<"press 2 for running Fp-growth algorithm\n"
     <<"press 3 for running Eclat algorithm\n";
     int users_desire;
