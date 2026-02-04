@@ -11,7 +11,11 @@ using namespace std;
 using namespace std::chrono;
 
 int transactions = 0;
+<<<<<<< HEAD
 double minimum_support=0.4;
+=======
+double minimum_support=0.2;
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
 double min_confidence=0.5;
 
 template<typename Iterator>
@@ -249,12 +253,15 @@ void generateRulesRecursive(const vector<int>&itemset,vector<int>&antecedent,int
             cout<<"\nsupport: "<<(support_AB/transactions)*100<<endl;
             cout<<"confidence: "<<confidence*100<<"%"<<endl;
             cout<<"lift: "<<lift<<endl;
+<<<<<<< HEAD
             if(lift > 1.1) {
                 cout << ">> STRATEGY: Bundle these! They are often bought together.\n";
             }    
             else if(lift < 0.9) {
                 cout << ">> STRATEGY: These are substitutes. Don't bundle them.\n";
             }    
+=======
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
         }
         return;
     }
@@ -344,7 +351,11 @@ void BuisnessAnalytics(map<vector<int>,int>&all_itemset_supports,int total_trans
                     if(support_pct>0.3){
                         found=true;
                         printItemset(itemset);
+<<<<<<< HEAD
                         cout<<" bought together in "<<(support_pct*100)<<"% of visits\n";
+=======
+                        cout<<"bought together in "<<(support_pct*100)<<"% of visits\n";
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
 
                     }
                 }
@@ -364,12 +375,16 @@ struct FPNode {
     int count;
     FPNode* parent;
     map<int, FPNode*> children;
+<<<<<<< HEAD
     FPNode* nodeLink;
+=======
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
 
     FPNode(int id, FPNode* p = nullptr) {
         itemId = id;
         count = 1;
         parent = p;
+<<<<<<< HEAD
         nodeLink=nullptr;
     }
 };
@@ -399,6 +414,14 @@ int parseItem(string word){
 
 
 string getItemName(int id) {
+=======
+    }
+};
+
+
+string getItemName(int id) {
+    // string conversion helper
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
     stringstream ss;
     ss << "I" << (id + 1);
     return ss.str();
@@ -436,6 +459,7 @@ void manualSort(vector<int>& items, map<int, int>& globalFreq) {
     }
 }
 
+<<<<<<< HEAD
 void ManualSortresults(vector<pair<vector<int>,int>>&results){
     int n=results.size();
     for(int i=0;i<n-1;i++){
@@ -465,6 +489,8 @@ void manualSortPairs(vector<pair<int,int>>&items){
     }
 }
 
+=======
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
 
 void printTree(FPNode* node, string indent, bool isLast) {
     cout << indent;
@@ -475,12 +501,18 @@ void printTree(FPNode* node, string indent, bool isLast) {
         cout << "|-"; //denotes middle child
         indent += "| ";
     }
+<<<<<<< HEAD
     if(node->itemId!=-1){
         cout << getItemName(node->itemId) << " (" << node->count << ")" << endl;
     }
     else{
         cout<<"ROOT"<<endl;
     }
+=======
+
+    cout << getItemName(node->itemId) << " (" << node->count << ")" << endl;
+
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
     int childIndex = 0;
     int totalChildren = node->children.size();
     
@@ -491,6 +523,7 @@ void printTree(FPNode* node, string indent, bool isLast) {
     }
 }
 
+<<<<<<< HEAD
 void insertTree(const vector<int>&transaction,FPNode* root,map<int,HeaderInfo>&headerTable,int count=1){
     FPNode* curr=root;
     for(int itemId: transaction){
@@ -590,6 +623,8 @@ void mineFP(map<int,HeaderInfo>&headerTable,int min_sup,vector<int>&prefix,vecto
     }
 }
 
+=======
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
 int main() {
     convertFile("INPUT.TXT", "output.txt");
     if(transactions==0){
@@ -598,16 +633,28 @@ int main() {
     }
     cout<<"press 1 for running Apriori algorithm\n" 
     <<"press 2 for running Fp-growth algorithm\n"
+<<<<<<< HEAD
     <<"press 3 for running Eclat algorithm\n\n";
     int users_desire;
     cin>>users_desire;
     int minimum_support_count=(int)ceil(transactions*minimum_support);
     cout<<"\nminimum support count: "<<minimum_support_count<<endl;
+=======
+    <<"press 3 for running Eclat algorithm\n";
+    int users_desire;
+    cin>>users_desire;
+    int minimum_support_count=(int)ceil(transactions*minimum_support);
+    cout<<"minimum support count: "<<minimum_support_count<<endl;
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
     if(users_desire==1){
         auto start=high_resolution_clock::now();
         map<vector<int>,int>all_itemset_supports;
         map<int,vector<vector<int>>>all_frequent_itemsets;
+<<<<<<< HEAD
         cout<<"\nfinding frequent 1 itemsets(L1)...\n";
+=======
+        cout<<"\n finding frequent 1 itemsets(L1)...\n";
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
         all_frequent_itemsets[1]=findFrequent_1_Itemsets("output.txt",minimum_support_count,all_itemset_supports);
         for(const auto& itemset:all_frequent_itemsets[1]){
             printItemset(itemset);
@@ -639,11 +686,18 @@ int main() {
             k++;
         }
         generateAndPrintRules(all_frequent_itemsets,all_itemset_supports);
+<<<<<<< HEAD
         auto stop=high_resolution_clock::now();
         auto duration=duration_cast<milliseconds>(stop-start);
         cout<<"Execution time for Apriori: "<<duration.count()<<"ms\n";
         BuisnessAnalytics(all_itemset_supports,transactions);
         
+=======
+        BuisnessAnalytics(all_itemset_supports,transactions);
+        auto stop=high_resolution_clock::now();
+        auto duration=duration_cast<milliseconds>(stop-start);
+        cout<<"Execution time for Apriori: "<<duration.count()<<"ms\n";
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
     }
 
     else if(users_desire==2){
@@ -697,6 +751,7 @@ int main() {
         
         cout << "Transactions: " << totalTransactions << " | Min Sup: " << minimum_support_count << endl;
 
+<<<<<<< HEAD
         map<int,HeaderInfo>headerTable;
         for(auto const& pair:frequencyMap){
             if(pair.second>=minimum_support_count){
@@ -704,6 +759,8 @@ int main() {
             }
         }
 
+=======
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
         in.clear();
         in.seekg(0, ios::beg);
 
@@ -720,6 +777,7 @@ int main() {
             vector<int> seenInTx;
 
             while(ss >> word) {
+<<<<<<< HEAD
                 if(word[0] == 'I' ) {
                     try {
                         int id = stoi(word.substr(1)) - 1;
@@ -730,6 +788,16 @@ int main() {
                                 if(seenInTx[k] == id){
                                      seen = true;
                                 }     
+=======
+                if(word[0] == 'I' || word[0] == 'i') {
+                    try {
+                        int id = stoi(word.substr(1)) - 1;
+                        if(frequencyMap[id] >= minimum_support_count) {
+                    
+                            bool seen = false;
+                            for(size_t k=0; k<seenInTx.size(); k++) {
+                                if(seenInTx[k] == id) seen = true;
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
                             }
                             if(!seen) {
                                 transaction.push_back(id);
@@ -742,12 +810,30 @@ int main() {
 
             manualSort(transaction, frequencyMap);
 
+<<<<<<< HEAD
             if(!transaction.empty()){
                 insertTree(transaction,root,headerTable);
+=======
+            FPNode* curr = root;
+            for(size_t i = 0; i < transaction.size(); i++) {
+                int itemId = transaction[i];
+                
+                if(curr->children.find(itemId) == curr->children.end()) {
+                    
+                    FPNode* newNode = new FPNode(itemId, curr);
+                    curr->children[itemId] = newNode;
+                    curr = newNode;
+                } else {
+                    
+                    curr = curr->children[itemId];
+                    curr->count++;
+                }
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
             }
         }
         in.close();
 
+<<<<<<< HEAD
         int fpChoice;
         cout<<"\n======================\n";
         cout<<"\n FP-GROWTH MENU \n";
@@ -810,6 +896,19 @@ int main() {
             }
             BuisnessAnalytics(analyticsMap,totalTransactions);
         }
+=======
+        
+        cout << "\n--- FP Growth Tree ---" << endl;
+        cout << "ROOT" << endl;
+        
+        int childCount = 0;
+        int totalRootChildren = root->children.size();
+        for(map<int, FPNode*>::iterator it = root->children.begin(); it != root->children.end(); ++it) {
+            childCount++;
+            printTree(it->second, "", (childCount == totalRootChildren));
+        }
+
+>>>>>>> 83f987541d5ca28e4107d9f78925b1f39be6ae1a
         return 0;
 
     }
