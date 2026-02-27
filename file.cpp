@@ -8,6 +8,19 @@
 #include<cmath>
 #include<chrono>
 
+//high intensity text
+#define HRED "\e[0;91m"
+#define HGRN "\e[0;92m"
+#define HYEL "\e[0;93m"
+#define HBLU "\e[0;94m"
+#define HMAG "\e[0;95m"
+#define HCYN "\e[0;96m"
+
+#define BWHT "\e[1;37m"
+
+//Reset
+#define CRESET "\e[0m"
+
 using namespace std;
 using namespace std::chrono;
 
@@ -57,6 +70,20 @@ void printItemset(const vector<int>&itemset){
         }
     }
     cout<<"}";
+}
+
+void manualSortVector(vector<int>&vec){
+    int n=vec.size();
+    for(int i=0;i<n;i++){
+        for(int j=0;j<n-i-1;j++){
+            // FIX: Add this condition
+            if(vec[j] > vec[j+1]) { 
+                int temp=vec[j];
+                vec[j]=vec[j+1];
+                vec[j+1]=temp;
+            }
+        }
+    }
 }
 
 void convertFile(const string &inputFile, const string &outputFile) {
@@ -217,87 +244,134 @@ vector<vector<int>> getFrequentItems(const vector<vector<int>>&candidates,const 
     return frequent_itemsets;
 }
 
-void generateRulesRecursive(const vector<int>&itemset,vector<int>&antecedent,int index,const map<vector<int>,int>&all_itemset_supports){
-    if(index==itemset.size()){
-        if(antecedent.empty()|| antecedent.size()==itemset.size()){
+void metric(const string& name, double value, const string& unit = "") {
+    cout << BWHT;
+    cout << "  " << name;
+    cout << string(14 - name.length(), ' ');
+    cout << ": " << value << unit << "\n";
+    cout << CRESET;
+}
+
+void strategy(const string& text) {
+    cout << HYEL;
+    cout << "💡 Strategy\n";
+    cout<<CRESET;
+    cout << "   → " << text << "\n\n";
+}
+
+void executionTime(int ms) {
+    cout << HBLU << "⏱  Execution time · " << ms << " ms\n\n" << CRESET;
+}
+
+
+    void generateRulesRecursive(const vector<int>&itemset,vector<int>&antecedent,int index,const map<vector<int>,int>&all_itemset_supports){
+        if(index==itemset.size()){
+            if(antecedent.empty()|| antecedent.size()==itemset.size()){
+                return;
+            }
+            
+            vector<int> sorted_antecedent = antecedent;
+            manualSortVector(sorted_antecedent);
+            
+            vector<int> consequent;
+            int i_itemset = 0;
+            int i_antecedent = 0;
+            
+            while(i_itemset < itemset.size()){
+                if(i_antecedent == sorted_antecedent.size() || 
+                itemset[i_itemset] < sorted_antecedent[i_antecedent]){
+                    consequent.push_back(itemset[i_itemset]);
+                    i_itemset++;
+                }
+                else if(itemset[i_itemset] == sorted_antecedent[i_antecedent]){
+                    i_itemset++;
+                    i_antecedent++;
+                }
+                else{
+                    i_antecedent++;
+                }
+            }
+            
+            vector<int> sorted_consequent = consequent;
+            manualSortVector(sorted_consequent);
+            
+            if(all_itemset_supports.find(sorted_antecedent) == all_itemset_supports.end() ||
+            all_itemset_supports.find(sorted_consequent) == all_itemset_supports.end()){
+                return;  
+            }
+            
+            double count_AB = all_itemset_supports.at(itemset);
+            double count_A = all_itemset_supports.at(sorted_antecedent);
+            double count_B = all_itemset_supports.at(sorted_consequent);
+            
+            double support_AB = count_AB / transactions;    
+            double support_A = count_A / transactions;     
+            double support_B = count_B / transactions;
+            
+            double confidence = support_AB / support_A;
+            
+            if(confidence >= min_confidence){
+                double lift = confidence / support_B;
+                
+                printItemset(sorted_antecedent);
+                cout << "-> ";
+                printItemset(sorted_consequent);
+                cout<<endl;
+                cout<<"----------------------"<<endl;
+                metric("Suport",support_AB*100,"%");
+                metric("Confidence",confidence*100,"%");
+                metric("Lift",lift);
+                
+                
+                if(lift > 1.1) {
+                    strategy(" Bundle these! They are often bought together.\n");
+                }    
+                else if(lift < 0.9) {
+                    strategy(" These are substitutes. Don't bundle them.\n");
+                }
+            }
             return;
         }
-        vector<int>consequent;
-        int i_itemset=0;
-        int i_antecedent=0;
-        while(i_itemset<itemset.size()){
-            if(i_antecedent==antecedent.size() || itemset[i_itemset]<antecedent[i_antecedent]){
-                consequent.push_back(itemset[i_itemset]);
-                i_itemset++;
-            }
-            else if(itemset[i_itemset]==antecedent[i_antecedent]){
-                i_itemset++;
-                i_antecedent++;
-            }
-            else{
-                i_antecedent++;
-            }
-        }
-        double support_AB=all_itemset_supports.at(itemset);
-        double support_A=all_itemset_supports.at(antecedent);
-        double support_B=all_itemset_supports.at(consequent);
-        double confidence=support_AB/support_A;
-        if(confidence>=min_confidence){
-            double lift=confidence/(support_B/transactions);
-            printItemset(antecedent);
-            cout<<"-> ";
-            printItemset(consequent);
-            cout<<"\nsupport: "<<(support_AB/transactions)*100<<endl;
-            cout<<"confidence: "<<confidence*100<<"%"<<endl;
-            cout<<"lift: "<<lift<<endl;
-
-            if(lift > 1.1) {
-                cout << ">> STRATEGY: Bundle these! They are often bought together.\n";
-            }    
-            else if(lift < 0.9) {
-                cout << ">> STRATEGY: These are substitutes. Don't bundle them.\n";
-            }    
-
-        }
-        return;
+        
+        generateRulesRecursive(itemset, antecedent, index+1, all_itemset_supports);
+        antecedent.push_back(itemset[index]);
+        generateRulesRecursive(itemset, antecedent, index+1, all_itemset_supports);
+        antecedent.pop_back();
     }
-    generateRulesRecursive(itemset,antecedent,index+1,all_itemset_supports);
-    antecedent.push_back(itemset[index]);
-    generateRulesRecursive(itemset,antecedent,index+1,all_itemset_supports);
-    antecedent.pop_back();
-}
 
-void generateAndPrintRules(const map<int,vector<vector<int>>>&all_frequent_itemsets,const map<vector<int>,int>&all_itemset_supports){
-    cout<<"\n---apriori rules (min confidence: "<<min_confidence*100<<"%)---"<<endl;
-    for(auto const& entry:all_frequent_itemsets){
-        int k=entry.first;
-        const auto& itemsets=entry.second;
-        if(k<2){
-            continue;
-        }
-        for(const auto& itemset:itemsets){
-            vector<int>antecedent;
-            generateRulesRecursive(itemset,antecedent,0,all_itemset_supports);
+    void generateAndPrintRules(const map<int,vector<vector<int>>>&all_frequent_itemsets,const map<vector<int>,int>&all_itemset_supports){
+        cout<<"\n---Apriori Rules (min confidence: "<<min_confidence*100<<"%)---"<<endl;
+        for(auto const& entry:all_frequent_itemsets){
+            int k=entry.first;
+            const auto& itemsets=entry.second;
+            if(k<2){
+                continue;
+            }
+            for(const auto& itemset:itemsets){
+                vector<int>antecedent;
+                generateRulesRecursive(itemset,antecedent,0,all_itemset_supports);
+            }
         }
     }
-}
 
 void BuisnessAnalytics(map<vector<int>,int>&all_itemset_supports,int total_transactions){
     int choice;
     
     do{
-        cout<<"\n===============\n";
-        cout<<"SHOPKEEPERS MENU     \n";
-        cout<<"1.PREDICT: probability of buying item x if user has {a,b..d}\n";
-        cout<<"2.STRATEGY: which items should be placed together? \n";
-        cout<<"0. exit to main menu \n";
-        cout<<"enter choice: \n";
+        cout << HCYN;
+        cout << "Shopkeeper Options\n";
+        cout << "──────────────────\n";
+        cout<<CRESET;
+        cout << "1 → Predict buying probability\n";
+        cout << "2 → Placement strategy\n";
+        cout << "0 → Exit\n";
+        cout<<"Enter choice: \n";
         cin>>choice;
 
         if(choice==1){
             int n_antecedent,n_consequent,item;
             vector<int>antecedent,full_set;
-            cout<<"\n---prediction tool ----\n";
+            cout<<"\n---Prediction tool ----\n";
             cout<<"how many items are currently in your cart? \n";
             cin>>n_antecedent;
             cout<<"Enter the item id's (E.g: 1,3,5): \n";
@@ -331,7 +405,7 @@ void BuisnessAnalytics(map<vector<int>,int>&all_itemset_supports,int total_trans
                 }
             }
             else{
-                cout<<"\n not enough data history to predict this combination \n";
+                cout<<"\nNot enough data history to predict this combination \n";
             }
         }
 
@@ -354,9 +428,9 @@ void BuisnessAnalytics(map<vector<int>,int>&all_itemset_supports,int total_trans
                 }
             }
             if(!found){
-                cout<<"NO strong groups found.\n";
+                cout<<HRED<<"NO strong groups found."<<CRESET<<endl;
             }
-            cout<<"\nTIP: place these items on the same asile or adjacent shelves.\n";
+            cout<<HGRN<<"\nTIP: "<<CRESET"place these items on the same asile or adjacent shelves.\n";
         }
     }
     while (choice!=0);
@@ -388,11 +462,6 @@ struct HeaderInfo{
     }
 };
 
-struct EclatNode{
-    int itemId;
-    set<int>tids;
-};
-
 int parseItem(string word){
     if(word[0]=='I' && word.length()>1){
         try{
@@ -406,7 +475,7 @@ int parseItem(string word){
 }
 
 string getItemName(int id) {
-    // string conversion helper
+
     stringstream ss;
     ss << "I" << (id + 1);
     return ss.str();
@@ -533,7 +602,6 @@ void insertTree(const vector<int>&transaction,FPNode* root,map<int,HeaderInfo>&h
 void deleteTree(FPNode* node) {
     if (node == nullptr) return;
     
-    // Delete all children first
     for (map<int, FPNode*>::iterator it = node->children.begin(); 
          it != node->children.end(); ++it) {
         deleteTree(it->second);
@@ -619,6 +687,180 @@ void mineFP(map<int,HeaderInfo>&headerTable,int min_sup,vector<int>&prefix,vecto
     }
 }
 
+void header(const string& title) {
+    cout << HCYN;
+    cout << "╭────────────────────────────────────────╮\n";
+    cout << "│  " << title;
+    cout << string(38 - title.length(), ' ') << "│\n";
+    cout << "╰────────────────────────────────────────╯\n";
+    cout << CRESET << "\n";
+}
+
+
+//ECLAT STRUCTERS & FUNCTIONS
+
+struct EclatNode{
+    int itemId;
+    set<int>tids;
+};
+
+void manualIntersect(const set<int>&set1,const set<int>&set2,set<int>&result){
+    result.clear();
+    for(auto it1=set1.begin();it1!=set1.end();++it1){
+        if(set2.find(*it1)!=set2.end()){
+            result.insert(*it1);
+        }
+    }
+}
+
+void manualSortEclatResults(vector<pair<vector<int>,int>>&results){
+    int n=results.size();
+    for(int i=0;i<n;i++){
+        for(int j=0;j<n-i-1;j++){
+            if(results[j].first.size()>results[j+1].first.size()){
+                pair<vector<int>,int>temp=results[j];
+                results[j]=results[j+1];
+                results[j+1]=temp;
+            }
+
+            else if(results[j].first.size()==results[j+1].first.size()){
+                if(results[j].second<results[j+1].second){
+                    pair<vector<int>,int>temp=results[j];
+                    results[j]=results[j+1];
+                    results[j+1]=temp;
+                }
+            }
+        }
+    }
+}
+
+
+void eclatMine(vector<pair<vector<int>, set<int>>>& prefixItemsets, int min_sup, vector<pair<vector<int>, int>>& results,int depth = 0) {
+    
+    int n = prefixItemsets.size();
+    
+    for(int i = 0; i < n; i++) {
+        vector<int> Xi = prefixItemsets[i].first;
+        set<int> tidsetXi = prefixItemsets[i].second;
+        
+        vector<pair<vector<int>, set<int>>> nextLevel;
+       
+        for(int j = i + 1; j < n; j++) {
+            vector<int> Xj = prefixItemsets[j].first;
+            set<int> tidsetXj = prefixItemsets[j].second;
+        
+            bool canCombine = false;
+            
+            if(Xi.size() == 1) {
+                canCombine = true;
+            } else {
+                
+                canCombine = true;
+                for(size_t k = 0; k < Xi.size() - 1; k++) {
+                    if(Xi[k] != Xj[k]) {
+                        canCombine = false;
+                        break;
+                    }
+                }
+                
+                if(canCombine && Xi[Xi.size() - 1] >= Xj[Xj.size() - 1]) {
+                    canCombine = false;
+                }
+            }
+            
+            if(canCombine) {
+                
+                vector<int> newItemset = Xi;
+                
+                newItemset.push_back(Xj[Xj.size() - 1]);
+                
+                set<int> newTidset;
+                manualIntersect(tidsetXi, tidsetXj, newTidset);
+                
+                if((int)newTidset.size() >= min_sup) {
+                    
+                    results.push_back({newItemset, (int)newTidset.size()});
+                    
+                    nextLevel.push_back({newItemset, newTidset});
+                }
+            }
+        }
+        
+        
+        if(!nextLevel.empty()) {
+            eclatMine(nextLevel, min_sup, results, depth + 1);
+        }
+    }
+
+}
+
+void buildVerticalDatabase(const string& filename,map<int,set<int>>&verticalDB,int min_sup){
+    ifstream in(filename);
+    if(!in.is_open()){
+        cerr<<HRED<<"Error Opening File!"<<CRESET<<endl;
+        return;
+    }
+    string line;
+    int tid=0;
+
+    while(getline(in,line)){
+        for(size_t i=0;i<line.length();i++){
+            if(line[i]==','||line[i]==':'){
+                line[i]=' ';
+            }
+        }
+        stringstream ss(line);
+        string word;
+        set<int>seenInTransaction;
+
+        while(ss>>word){
+            if(word[0]=='I' && word.length()>1){
+                try{
+                    int itemId=stoi(word.substr(1))-1;
+                    if(seenInTransaction.find(itemId)==seenInTransaction.end()){
+                        verticalDB[itemId].insert(tid);
+                        seenInTransaction.insert(itemId);
+                    }
+                }
+                catch(...){
+                    continue;
+                }
+            }
+        }
+        tid++;
+    }
+    in.close();
+
+    map<int,set<int>>filteredDB;
+    for(auto it=verticalDB.begin();it!=verticalDB.end();++it){
+        if((int)it->second.size()>=min_sup){
+            filteredDB[it->first]=it->second;
+        }
+    }
+    verticalDB=filteredDB;
+}
+
+void printEclatResults(const vector<pair<vector<int>,int>>&results,int totalTransactions){
+    cout <<HCYN<< "\n========================================" << endl;
+    cout << "ECLAT FREQUENT ITEMSETS" << endl;
+    cout << "========================================" <<CRESET<< endl;
+    map<int,int>sizeCount;
+
+    for(size_t i=0;i<results.size();i++){
+        const vector<int>&itemset=results[i].first;
+        int support=results[i].second;
+        sizeCount[itemset.size()]++;
+        printItemset(itemset);
+        cout<<" (support: "<<support<<", "<<(double)support/totalTransactions*100<<"%)"<<endl;
+    }
+    cout << "\n--- Summary ---" << endl;
+    for(map<int, int>::iterator it = sizeCount.begin(); it != sizeCount.end(); ++it) {
+        cout << it->first << "-itemsets: " << it->second << endl;
+    }
+    cout << "Total frequent itemsets: " << results.size() << endl;
+}
+
+
 int main() {
     
     convertFile("INPUT.TXT", "output.txt");
@@ -626,50 +868,53 @@ int main() {
         cerr<<"no transactions found . exiting\n";
         return 1;
     }
-    cout<<"press 1 for running Apriori algorithm\n"; 
-    cout<<"press 2 for running Fp-growth algorithm\n";
-    cout<<"press 3 for running Eclat algorithm\n\n";
+
+    cout<<"\npress 1 for running Apriori algorithm"<<endl; 
+    cout<<"press 2 for running Fp-growth algorithm"<<endl;
+    cout<<"press 3 for running Eclat algorithm"<<endl;
+    cout<<"Press 4 to comparing 3 algorithms"<<endl;
+    cout<<"\n";
     int users_desire;
     cin>>users_desire;
     int minimum_support_count=(int)ceil(transactions*minimum_support);
-    cout<<"\nminimum support count: "<<minimum_support_count<<endl;
-
+    cout<<"\nMinimum Support Count: "<<minimum_support_count<<endl;
+    cout<<"\n";
     if(users_desire==1){
+        header("RUNNING APRIORI ALGORITHM");
         auto start=high_resolution_clock::now();
         map<vector<int>,int>all_itemset_supports;
         map<int,vector<vector<int>>>all_frequent_itemsets;
 
-        cout<<"\nfinding frequent 1 itemsets(L1)...\n";
-
-        cout<<"\n finding frequent 1 itemsets(L1)...\n";
+        cout<<"\nFinding frequent 1 itemsets(L1)...\n";
 
         all_frequent_itemsets[1]=findFrequent_1_Itemsets("output.txt",minimum_support_count,all_itemset_supports);
         for(const auto& itemset:all_frequent_itemsets[1]){
             printItemset(itemset);
-            cout<<"(support: "<<all_itemset_supports[itemset]<<")\n";
+            cout<<"     Support: "<<all_itemset_supports[itemset]<<"\n";
 
         }
         int k=2;
         while(!all_frequent_itemsets[k-1].empty()){
-            cout<<"\n ...pass..."<<k<<".....\n";
-            cout<<"generating "<<k<<" itemset candidates (C"<<k<<")...\n";
+            cout<<"\nPass "<<k<<"\n";
+            cout<<"------------\n"<<endl;
+            cout<<"Generating "<<k<<" itemset candidates (C"<<k<<")\n";
             vector<vector<int>>Ck=generateCandidates(all_frequent_itemsets[k-1],k);
             if(Ck.empty()){
-                cout<<"NO candidates generated. stopping\n";
+                cout<<"NO candidates generated. Stopping\n";
                 break;
             }
-            cout<<"generated "<<Ck.size()<<" candidates\n";
+            cout<<"Generated "<<Ck.size()<<" candidates\n\n";
             map<vector<int>,int>candidate_counts=countCandidateFrequencies("output.txt",Ck);
-            cout<<"filtering for frequent "<<k<<"-itemsets(L"<<k<<")...\n";
+            cout<<"Filtering for frequent "<<k<<"-itemsets(L"<<k<<")...\n\n";
             all_frequent_itemsets[k]=getFrequentItems(Ck,candidate_counts,minimum_support_count,all_itemset_supports);
             if(all_frequent_itemsets[k].empty()){
-                cout<<"no frequent "<<k<<" itemsets found\n";
+                cout<<"No frequent "<<k<<" itemsets found\n";
                 break;
             }
-            cout<<"found "<<all_frequent_itemsets[k].size()<<" frequent "<<k<<"itemsets\n";
+            cout<<"Found "<<all_frequent_itemsets[k].size()<<" frequent "<<k<<"itemsets\n";
             for(const auto& itemset:all_frequent_itemsets[k]){
                 printItemset(itemset);
-                cout<<"(support: "<<all_itemset_supports[itemset]<<")\n";
+                cout<<"     Support: "<<all_itemset_supports[itemset]<<"\n";
             }
             k++;
         }
@@ -677,19 +922,18 @@ int main() {
 
         auto stop=high_resolution_clock::now();
         auto duration=duration_cast<milliseconds>(stop-start);
-        cout<<"Execution time for Apriori: "<<duration.count()<<"ms\n";
+        executionTime(duration.count());
         BuisnessAnalytics(all_itemset_supports,transactions);
 
     }
 
     else if(users_desire==2){
-        //will use fp growth here
-
+        //FP-GROWTH IMPLEMENTATION
+        auto start_one=high_resolution_clock::now();
         string inputFile = "INPUT.TXT";
-        
         ifstream in(inputFile);
         if (!in.is_open()) {
-            cerr << "Error: " << inputFile << " not found!" << endl;
+            cerr <<HRED<< "Error: " << inputFile << " not found!" <<CRESET<< endl;
             return 1;
         }
 
@@ -731,10 +975,7 @@ int main() {
             }
         }
 
-        
         cout << "Transactions: " << totalTransactions << " | Min Sup: " << minimum_support_count << endl;
-
-
         map<int,HeaderInfo>headerTable;
         for(auto const& pair:frequencyMap){
             if(pair.second>=minimum_support_count){
@@ -742,6 +983,279 @@ int main() {
             }
         }
 
+        in.clear();
+        in.seekg(0, ios::beg);
+
+        FPNode* root = new FPNode(-1); 
+
+        while(getline(in, line)) {
+            for(size_t i=0; i<line.length(); i++) {
+                if(line[i] == ',' || line[i] == ':') line[i] = ' ';
+            }
+
+            stringstream ss(line);
+            string word;
+            vector<int> transaction;
+            vector<int> seenInTx;
+
+            while(ss >> word) {   
+                if(word[0] == 'I' ) {
+                    try {
+                        int id = stoi(word.substr(1)) - 1;
+                        if(headerTable.count(id)) {
+                    
+                            bool seen = false;
+                            for(size_t k=0; k<seenInTx.size(); k++) {
+                                if(seenInTx[k] == id){ 
+                                    seen = true;
+                                }   
+                            }
+                            if(!seen) {
+                                transaction.push_back(id);
+                                seenInTx.push_back(id);
+                            }
+                        }
+                    } catch (...) {}
+                }
+            }
+
+            manualSort(transaction, frequencyMap);
+
+
+            if(!transaction.empty()){
+                insertTree(transaction,root,headerTable);
+            }
+
+        }
+        in.close();
+        
+        auto stop_one=high_resolution_clock::now();
+        auto duration_one=duration_cast<milliseconds>(stop_one-start_one);
+    
+        int fpChoice;
+        cout<<BWHT<<"\n======================"<<CRESET<<endl;
+        cout<<BWHT<<"FP-GROWTH MENU "<<CRESET<<endl;
+        cout<<BWHT<<"======================"<<CRESET<<endl;
+        cout<<"1. print fp-tree structure \n";
+        cout<<"2. mine frequent itemsets \n";
+        cout<<"0. exit \n";
+        cout<<"enter choice: ";
+        cin>>fpChoice;
+        
+        if(fpChoice==1){
+            cout<<HYEL<<"\n=== FP Growth Tree ==="<<CRESET<<endl;
+            printTree(root,"",true);
+        }
+        else if(fpChoice==2){
+            header("RUNNING FP-GROWTH ALGORITHM");
+            auto start_two=high_resolution_clock::now();
+
+            vector<int>prefix;
+            vector<pair<vector<int>,int>>results;
+
+            mineFP(headerTable,minimum_support_count,prefix,results);
+            auto stop_two=high_resolution_clock::now();
+            auto duration_two=duration_cast<milliseconds>(stop_two-start_two);
+
+            ManualSortresults(results);
+            cout<<"Found "<<results.size()<<" frequent itemsets:\n";
+            for(const auto&res :results){
+                printItemset(res.first);
+                cout<<" (support: "<<res.second<<")\n";
+            }
+            
+            executionTime(duration_two.count()+duration_one.count());
+            
+            cout<<BWHT<<"\n======================================\n";
+            cout<<"GENERATING ASSOCIATION RULES (FP GROWTH)\n";
+            cout<<"======================================"<<CRESET<<endl;
+            map<vector<int>,int>all_itemsets_supports;
+            for(auto& res:results){
+                vector<int>itemsets=res.first;
+                my_sort(itemsets.begin(),itemsets.end());
+                all_itemsets_supports[itemsets]=res.second;
+            }
+
+            cout<<"\n--- Strong Rules (min Confidence: "<<min_confidence*100<<"%)---"<<endl;
+            for(const auto& res:results){
+                vector<int>itemset=res.first;
+                if(itemset.size()>=2){
+                    my_sort(itemset.begin(),itemset.end());
+                    vector<int>antecedent;
+                    generateRulesRecursive(itemset,antecedent,0,all_itemsets_supports);
+                }
+            }
+
+            map<vector<int>,int>analyticsMap;
+            for(auto&res: results){
+                vector<int>itemsets=res.first;
+                my_sort(itemsets.begin(),itemsets.end());
+                analyticsMap[itemsets]=res.second;
+            }
+            BuisnessAnalytics(analyticsMap,totalTransactions);
+            deleteTree(root);
+        }
+        return 0;
+
+    }
+    
+    else if(users_desire==3){
+        // ECLAT ALGORITHM
+        header("RUNNING ECLAT ALGORITHM");
+        
+        auto start = high_resolution_clock::now();
+
+        cout << "\n Building vertical database..." << endl;
+        map<int, set<int>> verticalDB;
+        buildVerticalDatabase("INPUT.TXT", verticalDB, minimum_support_count);
+        
+        cout << "Vertical database built with " << verticalDB.size()<< " frequent 1-itemsets" << endl;
+
+        cout << "Frequent 1-itemsets:" << endl;
+        for(map<int, set<int>>::iterator it = verticalDB.begin(); 
+            it != verticalDB.end(); ++it) {
+            cout << "I" << (it->first + 1) << " (support: " 
+                << it->second.size() << ")" << endl;
+        }
+
+        cout << "\nMining frequent itemsets..." << endl;
+        vector<pair<vector<int>, set<int>>> initialItemsets;
+        
+        for(map<int, set<int>>::iterator it = verticalDB.begin();it != verticalDB.end(); ++it) {
+            vector<int> itemset;
+            itemset.push_back(it->first);
+            initialItemsets.push_back({itemset, it->second});
+        }
+
+        vector<pair<vector<int>, int>> results;
+
+        for(size_t i = 0; i < initialItemsets.size(); i++) {
+            results.push_back({initialItemsets[i].first,(int)initialItemsets[i].second.size()});
+        }
+
+        eclatMine(initialItemsets, minimum_support_count, results);
+        
+        auto stop = high_resolution_clock::now();
+        auto duration = duration_cast<milliseconds>(stop - start);
+
+        manualSortEclatResults(results);
+        printEclatResults(results, transactions);
+        
+        executionTime(duration.count());
+        cout <<BWHT<< "\n========================================" << endl;
+        cout << "GENERATING ASSOCIATION RULES (ECLAT)" << endl;
+        cout << "========================================" <<CRESET<< endl;
+
+        map<vector<int>, int> all_itemset_supports;
+        for(map<int, set<int>>::iterator it = verticalDB.begin();it != verticalDB.end(); ++it) {
+            vector<int> single_item;
+            single_item.push_back(it->first);
+            all_itemset_supports[single_item] = (int)it->second.size();
+        }
+
+
+        for(size_t i = 0; i < results.size(); i++) {
+            vector<int> itemset = results[i].first;
+            if(itemset.size() >= 2) { 
+                manualSortVector(itemset);
+                all_itemset_supports[itemset] = results[i].second;
+            }
+        }
+        
+        cout << "\n--- Strong Rules (min Confidence: " << min_confidence * 100 << "%) ---" <<endl;
+        
+        for(size_t i = 0; i < results.size(); i++) {
+            vector<int> itemset = results[i].first;
+            if(itemset.size() >= 2) {
+                manualSortVector(itemset);
+                vector<int> antecedent;
+                generateRulesRecursive(itemset, antecedent, 0, all_itemset_supports);
+            }
+        }
+
+        BuisnessAnalytics(all_itemset_supports, transactions);
+    }
+
+    else if(users_desire==4){
+        cout << "1. Running Apriori...";
+        auto start_apr = high_resolution_clock::now();
+        map<vector<int>,int>all_itemset_supports;
+        map<int,vector<vector<int>>>all_frequent_itemsets;
+        all_frequent_itemsets[1]=findFrequent_1_Itemsets("output.txt",minimum_support_count,all_itemset_supports);
+        int k=2;
+        while(!all_frequent_itemsets[k-1].empty()){
+            
+            vector<vector<int>>Ck=generateCandidates(all_frequent_itemsets[k-1],k);
+            if(Ck.empty()){
+                break;
+            }
+            map<vector<int>,int>candidate_counts=countCandidateFrequencies("output.txt",Ck);
+            all_frequent_itemsets[k]=getFrequentItems(Ck,candidate_counts,minimum_support_count,all_itemset_supports);
+            if(all_frequent_itemsets[k].empty()){
+                break;
+            }
+            
+            k++;
+        }
+        auto stop_apr = high_resolution_clock::now();
+        auto duration_apr = duration_cast<milliseconds>(stop_apr - start_apr);
+        cout << HGRN << " Done! (" << duration_apr.count() << " ms)" << CRESET << endl;
+        
+        cout << "2. Running FP-Growth...";
+        auto start_fp = high_resolution_clock::now();
+        
+
+
+        string inputFile = "INPUT.TXT";
+        ifstream in(inputFile);
+        if (!in.is_open()) {
+            cerr <<HRED<< "Error: " << inputFile << " not found!" <<CRESET<< endl;
+            return 1;
+        }
+
+        string line;
+        int totalTransactions = 0;
+        map<int, int> frequencyMap;
+
+        while(getline(in, line)) {
+            totalTransactions++;
+            
+            for(size_t i=0; i<line.length(); i++) {
+                if(line[i] == ',' || line[i] == ':') line[i] = ' ';
+            }
+            
+            stringstream ss(line);
+            string word;
+            
+            vector<int> seenInTx; 
+
+            while(ss >> word) {
+                if(word[0] == 'I') {
+                    int id = 0;
+                    
+                    try {
+                        id = stoi(word.substr(1)) - 1;
+                    } 
+                    catch(...) { continue; }
+                    bool seen = false;
+                    for(size_t k=0; k<seenInTx.size(); k++) {
+                        if(seenInTx[k] == id) seen = true;
+                    }
+
+                    if(!seen) {
+                        frequencyMap[id]++;
+                        seenInTx.push_back(id);
+                    }
+
+                }
+            }
+        }
+        map<int,HeaderInfo>headerTable;
+        for(auto const& pair:frequencyMap){
+            if(pair.second>=minimum_support_count){
+                headerTable[pair.first].count=pair.second;
+            }
+        }
 
         in.clear();
         in.seekg(0, ios::beg);
@@ -787,86 +1301,78 @@ int main() {
             }
         }
         in.close();
-    
-        int fpChoice;
-        cout<<"\n======================\n";
-        cout<<"\n FP-GROWTH MENU \n";
-        cout<<"1. print fp-tree structure \n";
-        cout<<"2. mine frequent itemsets \n";
-        cout<<"0. exit \n";
-        cout<<"enter choice: ";
-        cin>>fpChoice;
+        vector<int>prefix;
+        vector<pair<vector<int>,int>>result;
+        mineFP(headerTable,minimum_support_count,prefix,result);
+        auto stop_fp = high_resolution_clock::now();
+        auto duration_fp = duration_cast<milliseconds>(stop_fp - start_fp);
+        cout << HGRN << " Done! (" << duration_fp.count() << " ms)" << CRESET << endl;
+        deleteTree(root);
+
+
+        cout << "3. Running Eclat...";
+        auto start_eclat = high_resolution_clock::now();
         
-        if(fpChoice==1){
-            cout<<"\n--- FP Growth Tree ---\n";
-            printTree(root,"",true);
-        }
-        else if(fpChoice==2){
-            cout<<"\n---- Mining Frequent Itemsets ----\n";
-            auto start=high_resolution_clock::now();
-
-            vector<int>prefix;
-            vector<pair<vector<int>,int>>results;
-
-            mineFP(headerTable,minimum_support_count,prefix,results);
-            auto stop=high_resolution_clock::now();
-            auto duration=duration_cast<milliseconds>(stop-start);
-
-            ManualSortresults(results);
-            cout<<"Found "<<results.size()<<" frequent itemsets:\n";
-            for(const auto&res :results){
-                printItemset(res.first);
-                cout<<" (support: "<<res.second<<")\n";
-            }
-            cout<<"\n-------------------------\n";
-            cout<<"execution time for fp-growth mining: "<<duration.count()<<"ms\n";
-            cout<<"--------------------------\n";
-
-            cout<<"\n------------------------\n";
-            cout<<"GENERATING ASSOCIATION RULES (FP GROWTH)\n";
-            cout<<"\n------------------------\n";
-            map<vector<int>,int>all_itemsets_supports;
-            for(auto& res:results){
-                vector<int>itemsets=res.first;
-                my_sort(itemsets.begin(),itemsets.end());
-                all_itemsets_supports[itemsets]=res.second;
-            }
-
-            cout<<"\n--- Strong Rules (min Confidence: "<<min_confidence*100<<"%)---\n";
-            for(const auto& res:results){
-                vector<int>itemset=res.first;
-                if(itemset.size()>=2){
-                    my_sort(itemset.begin(),itemset.end());
-                    vector<int>antecedent;
-                    generateRulesRecursive(itemset,antecedent,0,all_itemsets_supports);
-                }
-            }
-
-            map<vector<int>,int>analyticsMap;
-            for(auto&res: results){
-                vector<int>itemsets=res.first;
-                my_sort(itemsets.begin(),itemsets.end());
-                analyticsMap[itemsets]=res.second;
-            }
-            BuisnessAnalytics(analyticsMap,totalTransactions);
-            deleteTree(root);
+        map<int, set<int>> verticalDB;
+        buildVerticalDatabase("INPUT.TXT", verticalDB, minimum_support_count);
+        
+        vector<pair<vector<int>, set<int>>> initialItemsets;
+        
+        for(map<int, set<int>>::iterator it = verticalDB.begin();it != verticalDB.end(); ++it) {
+            vector<int> itemset;
+            itemset.push_back(it->first);
+            initialItemsets.push_back({itemset, it->second});
         }
 
-        // cout << "\n--- FP Growth Tree ---" << endl;
-        // cout << "ROOT" << endl;
+        vector<pair<vector<int>, int>> results;
+
+        for(size_t i = 0; i < initialItemsets.size(); i++) {
+            results.push_back({initialItemsets[i].first,(int)initialItemsets[i].second.size()});
+        }
+
+        eclatMine(initialItemsets, minimum_support_count, results);
+        auto stop_eclat = high_resolution_clock::now();
+        auto duration_eclat = duration_cast<milliseconds>(stop_eclat - start_eclat);
+        cout << HGRN << " Done! (" << duration_eclat.count() << " ms)" << CRESET << endl;
+
         
-        // int childCount = 0;
-        // int totalRootChildren = root->children.size();
-        // for(map<int, FPNode*>::iterator it = root->children.begin(); it != root->children.end(); ++it) {
-        //     childCount++;
-        //     printTree(it->second, "", (childCount == totalRootChildren));
-        // }
 
-         return 0;
+        cout << "\n\n";
+        cout << HMAG << "============================================" << endl;
+        cout << "       ALGORITHM PERFORMANCE COMPARISON       " << endl;
+        cout << "============================================" << CRESET << endl;
+        
+    // Header
+        cout << left << setw(20) << "Algorithm" 
+         << left << setw(15) << "Time (ms)" 
+         << left << setw(15) << "Status" << endl;
+        cout << "--------------------------------------------" << endl;
 
-    }
-    else if(users_desire==3){
-        //will use  eclat here
+    // Row 1: Apriori
+        cout << left << setw(20) << "Apriori" 
+         << left << setw(15) << duration_apr.count() 
+         << (duration_apr.count() > duration_fp.count() ? HRED "Slowest" : HGRN "Fast") << CRESET << endl;
+
+    // Row 2: FP-Growth
+        cout << left << setw(20) << "FP-Growth" 
+         << left << setw(15) << duration_fp.count() 
+         << HGRN << "Fast" << CRESET << endl;
+
+    // Row 3: Eclat
+        cout << left << setw(20) << "Eclat" 
+         << left << setw(15) << duration_eclat.count() 
+         << HCYN << "Vertical" << CRESET << endl;
+         
+        cout << "============================================" << endl;
+        
+        // Logic to recommend the winner
+        long long min_time = min(duration_apr.count(), min(duration_fp.count(), duration_eclat.count()));
+        cout << "\nResult: " << HYEL;
+        if(min_time == duration_fp.count()) cout << "FP-Growth is the winner!";
+        else if(min_time == duration_eclat.count()) cout << "Eclat is the winner!";
+        else cout << "Apriori is the winner!";
+        cout << CRESET << endl;
+
     }
     
     return 0;
