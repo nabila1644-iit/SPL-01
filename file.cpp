@@ -76,7 +76,7 @@ void manualSortVector(vector<int>&vec){
     int n=vec.size();
     for(int i=0;i<n;i++){
         for(int j=0;j<n-i-1;j++){
-            // FIX: Add this condition
+
             if(vec[j] > vec[j+1]) { 
                 int temp=vec[j];
                 vec[j]=vec[j+1];
@@ -318,10 +318,9 @@ void executionTime(int ms) {
                 printItemset(sorted_consequent);
                 cout<<endl;
                 cout<<"----------------------"<<endl;
-                metric("Suport",support_AB*100,"%");
+                metric("Support",support_AB*100,"%");
                 metric("Confidence",confidence*100,"%");
                 metric("Lift",lift);
-                
                 
                 if(lift > 1.1) {
                     strategy(" Bundle these! They are often bought together.\n");
@@ -687,6 +686,82 @@ void mineFP(map<int,HeaderInfo>&headerTable,int min_sup,vector<int>&prefix,vecto
     }
 }
 
+bool isProperSuperset(const vector<int>&sup,const vector<int>&sub){
+    if(sup.size()<=sub.size()){
+        return false;
+    }
+    int i=0;
+    int j=0;
+    while(i<(int)sup.size() && j<(int)sub.size()){
+        if(sup[i]==sub[j]){
+            i++;
+            j++;
+        }
+        else if(sup[i]<sub[j]){
+            i++;
+        }
+        else{
+            return false;
+        }
+    }
+    return j == (int)sub.size();
+}
+
+vector<pair<vector<int>,int>> filterClosed(vector<pair<vector<int>,int>>& allFrequent) {
+
+    for(size_t i = 0; i < allFrequent.size(); i++) {
+        my_sort(allFrequent[i].first.begin(), allFrequent[i].first.end());
+    }
+
+    vector<pair<vector<int>,int>> closed;
+    int n = (int)allFrequent.size();
+
+    for(int i = 0; i < n; i++) {
+        const vector<int>& X= allFrequent[i].first;
+        int suppX = allFrequent[i].second;
+        bool isClosed = true;
+
+        for(int j = 0; j < n; j++) {
+            if(i == j) continue;
+            const vector<int>& Y     = allFrequent[j].first;
+            int                suppY = allFrequent[j].second;
+
+            // X is NOT closed if a proper superset Y exists with same support
+            if(suppY == suppX && isProperSuperset(Y, X)) {
+                isClosed = false;
+                break; 
+            }
+        }
+
+        if(isClosed){
+             closed.push_back({X, suppX});
+        }     
+    }
+    return closed;
+}
+
+void printClosetResults(const vector<pair<vector<int>,int>>& results, int totalTransactions){
+    cout << "CLOSET: CLOSED FREQUENT ITEMSETS     " << endl;
+    cout<<endl;
+    map<int,int> sizeCount;
+    for(size_t i = 0; i < results.size(); i++) {
+        const vector<int>& itemset = results[i].first;
+        int support = results[i].second;
+        sizeCount[(int)itemset.size()]++;
+
+        printItemset(itemset);
+
+        cout << " ( support: " << support<<" )" <<endl;
+    }
+    cout << "\n--- Summary ---" << endl;
+    for(map<int,int>::iterator it = sizeCount.begin(); it != sizeCount.end(); ++it) {
+        cout << it->first << "-itemsets: " << it->second << endl;
+    }
+    cout <<  "Total CLOSED frequent itemsets: " << results.size()<< endl;
+    cout <<  "(Compare: FP-Growth outputs ALL frequent itemsets, CLOSET is more compact)\n";
+    cout<<endl;
+}
+
 void header(const string& title) {
     cout << HCYN;
     cout << "╭────────────────────────────────────────╮\n";
@@ -873,6 +948,7 @@ int main() {
     cout<<"press 2 for running Fp-growth algorithm"<<endl;
     cout<<"press 3 for running Eclat algorithm"<<endl;
     cout<<"Press 4 to comparing 3 algorithms"<<endl;
+    cout<<"Press 5 for running CLOSET algorithm"<<endl;
     cout<<"\n";
     int users_desire;
     cin>>users_desire;
@@ -1373,6 +1449,144 @@ int main() {
         else cout << "Apriori is the winner!";
         cout << CRESET << endl;
 
+    }
+
+    else if(users_desire == 5) {
+        // ── CLOSET ALGORITHM ────────────────────────────────────────────────
+        header("RUNNING CLOSET ALGORITHM");
+        auto start = high_resolution_clock::now();
+
+        string inputFile = "INPUT.TXT";
+        ifstream in(inputFile);
+        if(!in.is_open()) {
+            cerr << HRED << "Error: " << inputFile << " not found!" << CRESET << endl;
+            return 1;
+        }
+
+        string line;
+        int totalTransactions = 0;
+        map<int,int> frequencyMap;
+
+        while(getline(in, line)) {
+            totalTransactions++;
+            for(size_t i = 0; i < line.length(); i++) {
+                if(line[i] == ',' || line[i] == ':') line[i] = ' ';
+            }
+            stringstream ss(line);
+            string word;
+            vector<int> seenInTx;
+            while(ss >> word) {
+                if(word[0] == 'I' && word.length() > 1) {
+                    try {
+                        int id = stoi(word.substr(1)) - 1;
+                        bool seen = false;
+                        for(size_t k = 0; k < seenInTx.size(); k++) {
+                            if(seenInTx[k] == id) { seen = true; break; }
+                        }
+                        if(!seen) { frequencyMap[id]++; seenInTx.push_back(id); }
+                    } catch(...) {}
+                }
+            }
+        }
+
+        cout << "Transactions: " << totalTransactions
+             << " | Min Support Count: " << minimum_support_count << endl;
+
+        map<int,HeaderInfo> headerTable;
+        for(auto const& p : frequencyMap) {
+            if(p.second >= minimum_support_count) {
+                headerTable[p.first].count = p.second;
+            }
+        }
+
+        in.clear();
+        in.seekg(0, ios::beg);
+        FPNode* root = new FPNode(-1);
+
+        while(getline(in, line)) {
+            for(size_t i = 0; i < line.length(); i++) {
+                if(line[i] == ',' || line[i] == ':') line[i] = ' ';
+            }
+            stringstream ss(line);
+            string word;
+            vector<int> transaction;
+            vector<int> seenInTx;
+            while(ss >> word) {
+                if(word[0] == 'I' && word.length() > 1) {
+                    try {
+                        int id = stoi(word.substr(1)) - 1;
+                        if(headerTable.count(id)) {
+                            bool seen = false;
+                           for(size_t k = 0; k < seenInTx.size(); k++) {
+                                if(seenInTx[k] == id) { seen = true; break; }
+                            }
+                            if(!seen) { transaction.push_back(id); seenInTx.push_back(id); }
+                        }
+                    } catch(...) {}
+                }
+            }
+            manualSort(transaction, frequencyMap);
+            if(!transaction.empty()) insertTree(transaction, root, headerTable);
+        }
+        in.close();
+
+        cout << "\nStep 1: Mining all frequent itemsets via FP-Growth..." << endl;
+        vector<int> prefix;
+        vector<pair<vector<int>,int>> allFrequent;
+        mineFP(headerTable, minimum_support_count, prefix, allFrequent);
+        cout << "Found " << allFrequent.size() << " total frequent itemsets." << endl;
+
+        cout << "Step 2: Filtering for closed itemsets..." << endl;
+        vector<pair<vector<int>,int>> closedResults = filterClosed(allFrequent);
+
+        auto stop = high_resolution_clock::now();
+        auto duration = duration_cast<milliseconds>(stop - start);
+
+        int nr = (int)closedResults.size();
+        for(int i = 0; i < nr - 1; i++) {
+            for(int j = 0; j < nr - i - 1; j++) {
+                bool doSwap = false;
+                if(closedResults[j].first.size() < closedResults[j+1].first.size()) doSwap = true;
+                else if(closedResults[j].first.size() == closedResults[j+1].first.size() &&closedResults[j].second < closedResults[j+1].second){ 
+                    doSwap = true;
+                }    
+                if(doSwap) {
+                    auto tmp = closedResults[j];
+                    closedResults[j] = closedResults[j+1];
+                    closedResults[j+1] = tmp;
+                }
+            }
+        }
+
+        printClosetResults(closedResults, totalTransactions);
+        executionTime(duration.count());
+
+        cout << BWHT << "\n======================================\n";
+        cout << "  ASSOCIATION RULES (CLOSET)\n";
+        cout << "======================================" << CRESET << endl;
+
+        map<vector<int>,int> all_itemset_supports;
+        for(size_t i = 0; i < allFrequent.size(); i++) {
+            vector<int> s = allFrequent[i].first;
+            my_sort(s.begin(), s.end());
+            all_itemset_supports[s] = allFrequent[i].second;
+        }
+
+        cout << "\n--- Strong Rules (min Confidence: " << min_confidence * 100 << "%) ---" << endl;
+        bool anyRule = false;
+        for(size_t i = 0; i < closedResults.size(); i++) {
+            vector<int> itemset = closedResults[i].first;
+            if(itemset.size() >= 2) {
+                my_sort(itemset.begin(), itemset.end());
+                vector<int> antecedent;
+                generateRulesRecursive(itemset, antecedent, 0, all_itemset_supports);
+                anyRule = true;
+            }
+        }
+        if(!anyRule) cout << "No multi-item closed sets found for rule generation.\n";
+
+        BuisnessAnalytics(all_itemset_supports, totalTransactions);
+        deleteTree(root);
     }
     
     return 0;
